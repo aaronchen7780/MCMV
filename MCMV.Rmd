@@ -1,0 +1,105 @@
+---
+title: "MCMV"
+author: "Yu-An Chen"
+date: '2023-01-25'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Reading, translation, and basic summarization
+```{r}
+library(dplyr)
+df = read.csv("MCMV.csv")
+df = subset(df, State != "Grand Total")
+
+#translation
+df$Current.Status = unlist(lapply(df$Current.Status, 
+       function(x){
+              if (x == "Cancelado/Distratado"){
+                return (c("Cancelled"))
+              }
+              else if (x == "Obras Atrasadas"){
+                return(c("Late Works"))
+              }
+              else if (x == "Obras Concluídas - FGTS"){
+                return(c("Completed Works"))
+              }
+              else if (x == "Obras Concluídas"){
+                return(c("Completed Works"))
+              }
+              else if (x == "Obras Distratadas"){
+                return(c("Distracted Works"))
+              }
+              else if (x == "Obras em Andamento"){
+                return(c("Construction in progress"))
+              }
+              else if (x == "Obras Entregues"){
+                return(c("Works Delivered"))
+              }
+              else if (x == "Obras Não Iniciadas"){
+                return(c("Not Started"))
+              }
+              else if (x == "Obras Paralisadas"){
+                return(c("Paralyzed Works"))
+              }
+              else if (x == "Empreendimentos Entregues com entregas remanescente"){
+                return (c("Deliveries in Progress"))
+              }
+              else if (x == "Não Iniciada - Fase Projeto"){
+                return(c("Not started, project phase"))
+              }
+              else{
+                return (c(x))
+              }
+          }
+      )
+  )
+
+Status = summarize(group_by(df, Current.Status), 
+                     units = sum(Number.of.units.contracted), .groups = 'drop')
+Status = Status[-c(1, 4),]
+
+StateStatus = summarize(group_by(df, State, Current.Status), 
+                     units = sum(Number.of.units.contracted), .groups = 'drop')
+
+```
+
+# Visualizations 
+Militia activity seem like not the main source of problem before/during construction (~1% paralyzed works)? Need to look at proportions after completion of construction. 
+```{r}
+propsSorted = sort(prop.table(table(df$Current.Status)), decreasing = TRUE)
+pie(propsSorted[1:7], main = "Housing Project Status Distribution, 99.3% coverage")
+
+pie(propsSorted[-c(1:4)], 
+    main = "Incomplete Housing Project Status Distribution, 7% coverage")
+
+pie(Status$units, labels = Status$Current.Status,
+    main = "Housing Unit Status Distribution")
+
+pie(propsSorted[-c(1:4)], 
+    main = "Incomplete Housing Unit Status Distribution")
+```
+
+# Rio Specific Visualizations
+```{r}
+library(ggplot2)
+
+RJSubset = subset(StateStatus, State == "RJ")
+RJSummarized = summarize(group_by(RJSubset, Current.Status), total = sum(units))
+RJSummarized = na.omit(RJSummarized)
+RJSummarized$Current.Status <- factor(RJSummarized$Current.Status,              
+                  levels = RJSummarized$Current.Status[order(RJSummarized$total, 
+                                                             decreasing = TRUE)])
+
+
+ggplot(data = RJSummarized, aes(x = Current.Status, y = total)) +
+      geom_bar(stat = "identity", fill = "maroon", col = "maroon") + 
+      theme(axis.text.x = element_text(angle = 15)) + 
+      labs(x = "Current Status", 
+           y = "Number of Units", 
+           title = "MCMV Project Status in Rio")
+
+```
