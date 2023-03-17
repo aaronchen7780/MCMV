@@ -1,0 +1,330 @@
+---
+title: "terr control"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+date: '2023-02-16'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, include = FALSE}
+#install.packages("tidyverse")
+library(tidyverse)
+library("ggmap")
+#devtools::install_github("dkahle/ggmap", ref = "tidyup")
+```
+
+
+```{r}
+terr <- read.csv("terr control.csv", stringsAsFactors=F)
+terr
+```
+
+```{r, include = FALSE}
+addresses <- distinct(terr, favela_address)
+addresses
+```
+
+```{r}
+# register_google(key="AIzaSyDVqzce-n2UoZPPNyoArG8MJcmlKvJOApQ")
+# addresses_df <- as.data.frame(addresses)
+# locations_df <- mutate_geocode(addresses_df, location=favela_address, output="latlona")
+```
+
+```{r}
+#IGNORE THIS CODE unless you can make mapview work
+# install.packages("mapview",type="binary")
+# require(mapview)
+# install.packages("mapview", repos="http://cran.rstudio.com/", dependencies=TRUE)
+# mapview(locations_df, xcol = "lon", ycol = "lat", grid = FALSE)
+```
+
+```{r}
+# register_google(key="AIzaSyDVqzce-n2UoZPPNyoArG8MJcmlKvJOApQ")
+# geocode("Rio de Janeiro")
+locations_df = read.csv("favelaCoords.csv")
+
+terr = na.omit(terr)
+locations_df = na.omit(locations_df)
+
+locations_df = inner_join(locations_df, terr, by = "favela_address")
+locations_df = locations_df[-c(which(locations_df$controlling_faction_2005 == "")),]
+# map <- get_googlemap(center = c(-43.469348, -22.908618), zoom = 11)
+
+loc <- c(left = -43.75, bottom = -23.1, right = -43.15, top = -22.73)
+map <- get_map(location=loc, source="stamen", maptype="terrain")
+
+
+mapColors = function(x){
+  if(x == "ADA"){
+    return("red")
+  }
+  else{
+    return("blue")
+  }
+}
+
+
+```
+
+
+# Militia Control of Favelas Over Time
+
+```{r}
+# ADA = RED, CV = SKY BLUE, MILICIA = DARK GREEN, NEUTRAL = ORANGE, TCP = PURPLE
+# COMPLEXDO = YELLOW, MIL/DESARM = PINK, UPP = BROWN, UPP SOCIAL = MAROON
+
+progress = ggmap(map) + geom_point(data = locations_df, aes(x = lon, y = lat, 
+                                         color = social_progress_index),
+                                         alpha = 0.5, na.rm = TRUE) +
+      labs(title = "Social Progress in Rio de Janeiro")
+
+
+
+militia05 = ggmap(map) + geom_point(data = locations_df, aes(x = lon, y = lat, 
+                                         color = controlling_faction_2005),
+                                         alpha = 0.5, na.rm = TRUE) +
+                        scale_color_manual(values=c("red", "sky blue", 
+                                                    "dark green", "orange", 
+                                                    "purple")) + 
+                        labs(title = "Favelas in Rio de Janeiro (2005)")
+
+
+militia06 = ggmap(map) + geom_point(data = locations_df, aes(x = lon, y = lat,
+                                         color = controlling_faction_2006),
+                                         alpha = 0.5, na.rm = TRUE) +
+                        scale_color_manual(values=c("red", "sky blue", 
+                                                    "dark green",
+                                                    "orange", "purple")) +
+                        labs(title = "Favelas in Rio de Janeiro (2006)")
+
+militia07 = ggmap(map) + geom_point(data = locations_df, aes(x = lon, y = lat, 
+                                         color = controlling_faction_2007),
+                                         alpha = 0.5, na.rm = TRUE) +
+                        scale_color_manual(values=c("red", "sky blue", 
+                                                    "dark green",
+                                              "orange", "purple")) + 
+                        labs(title = "Favelas in Rio de Janeiro (2007)")
+
+militia08 = ggmap(map) + geom_point(data = locations_df, aes(x = lon, y = lat, 
+                                         color = controlling_faction_2008),
+                                         alpha = 0.5, na.rm = TRUE) +
+                        scale_color_manual(values=c("red", "sky blue", 
+                                                    "dark green",
+                                              "orange", "purple")) + 
+                       labs(title = "Favelas in Rio de Janeiro (2008)")
+
+militia09 = ggmap(map) + geom_point(data = locations_df, aes(x = lon, y = lat, 
+                                         color = controlling_faction_2009),
+                                         alpha = 0.5, na.rm = TRUE) +
+                        scale_color_manual(values=c("red", "sky blue", 
+                                                    "dark green",
+                                              "orange", "purple")) + 
+                        labs(title = "Favelas in Rio de Janeiro (2009)")
+
+militia13 = ggmap(map) + geom_point(data = locations_df, aes(x = lon, y = lat, 
+                                         color = controlling_faction_2013),
+                                         alpha = 0.5, na.rm = TRUE) +
+                        scale_color_manual(values = c("red", "yellow", 
+                                                      "sky blue", "pink", 
+                                                      "dark green", "orange", 
+                                                      "purple", "brown", 
+                                                      "maroon")) + 
+                        labs(title = "Favelas in Rio de Janeiro (2013)")
+
+militia19 = ggmap(map) + geom_point(data = locations_df, aes(x = lon, y = lat, 
+                                         color = controlling_faction_2019),
+                                         alpha = 0.5, na.rm = TRUE) +
+                        scale_color_manual(values = c("red", "yellow", 
+                                                      "sky blue", "pink", 
+                                                      "dark green", "orange", 
+                                                      "purple", "brown", 
+                                                      "maroon")) + 
+                        labs(title = "Favelas in Rio de Janeiro (2019)")
+
+
+militia05
+militia06
+militia07
+militia08
+militia09
+militia13
+militia19
+progress
+```
+
+# Attempt at K-means Clustering
+
+## K-Means with Most Dominant Group
+
+```{r}
+coords = data.frame(lon = locations_df$lon, lat = locations_df$lat)
+
+numClusters = 50
+means = kmeans(coords, centers = numClusters, iter.max = 20)
+
+kMeanCenters = data.frame(means$centers)
+
+getDomGroup = function(i){
+  members = which(means$cluster == i)
+  clusterMembers = locations_df[members,]
+  domGroup2005 = names(sort(table(clusterMembers$controlling_faction_2005), 
+                            decreasing = TRUE))[1]
+  domGroup2006 = names(sort(table(clusterMembers$controlling_faction_2006), 
+                            decreasing = TRUE))[1]
+  domGroup2007 = names(sort(table(clusterMembers$controlling_faction_2007), 
+                            decreasing = TRUE))[1]
+  domGroup2008 = names(sort(table(clusterMembers$controlling_faction_2008), 
+                            decreasing = TRUE))[1]
+  domGroup2009 = names(sort(table(clusterMembers$controlling_faction_2009), 
+                            decreasing = TRUE))[1]
+  domGroup2013 = names(sort(table(clusterMembers$controlling_faction_2013), 
+                            decreasing = TRUE))[1]
+  domGroup2019 = names(sort(table(clusterMembers$controlling_faction_2019), 
+                            decreasing = TRUE))[1]
+  
+  return(c(domGroup2005, domGroup2006, domGroup2007,
+           domGroup2008, domGroup2009, domGroup2013,
+           domGroup2019))
+}
+
+
+domGroups = t(matrix(unlist(lapply(c(1:numClusters), getDomGroup)), 
+                     ncol = numClusters))
+
+kMeanCenters = cbind(kMeanCenters, domGroups)
+names(kMeanCenters) = c("lon", "lat", "y.2005", "y.2006", "y.2007", 
+                        "y.2008", "y.2009", "y.2013", "y.2019")
+
+# ADA = RED, CV = SKY BLUE, MILICIA = DARK GREEN, NEUTRAL = ORANGE, TCP = PURPLE
+# COMPLEXDO = YELLOW, MIL/DESARM = PINK, UPP = BROWN, UPP SOCIAL = MAROON
+
+
+centers2005 = ggmap(map) + geom_point(data = kMeanCenters,
+                                  aes(x = lon, y = lat, color = y.2005),
+                                  size = 3, alpha = 0.65, na.rm = TRUE) +
+              scale_color_manual(values=c("red", "sky blue", "dark green", 
+                                          "orange", "purple")) + 
+              labs(title = "[Clustered, 2005] Favelas in Rio de Janeiro") 
+
+centers2006 = ggmap(map) + geom_point(data = kMeanCenters,
+                                  aes(x = lon, y = lat, color = y.2006),
+                                  size = 3, alpha = 0.65, na.rm = TRUE) +
+              scale_color_manual(values=c("red", "sky blue", "dark green", 
+                                          "orange","purple")) + 
+              labs(title = "[Clustered, 2006] Favelas in Rio de Janeiro")
+
+centers2007 = ggmap(map) + geom_point(data = kMeanCenters,
+                                  aes(x = lon, y = lat, color = y.2007),
+                                  size = 3, alpha = 0.65, na.rm = TRUE) +
+              scale_color_manual(values=c("red", "sky blue", "dark green", 
+                                          "purple")) + 
+      labs(title = "[Clustered, 2007] Favelas in Rio de Janeiro")
+
+centers2008 = ggmap(map) + geom_point(data = kMeanCenters,
+                                  aes(x = lon, y = lat, color = y.2008),
+                                  size = 3, alpha = 0.65, na.rm = TRUE) +
+              scale_color_manual(values=c("red", "sky blue", "dark green", 
+                                          "purple")) + 
+              labs(title = "[Clustered, 2008] Favelas in Rio de Janeiro")
+
+centers2009 = ggmap(map) + geom_point(data = kMeanCenters,
+                                  aes(x = lon, y = lat, color = y.2009),
+                                  size = 3, alpha = 0.65, na.rm = TRUE) +
+              scale_color_manual(values=c("red", "sky blue", "dark green", 
+                                           "purple")) + 
+              labs(title = "[Clustered, 2009] Favelas in Rio de Janeiro")
+
+centers2013 = ggmap(map) + geom_point(data = kMeanCenters,
+                                  aes(x = lon, y = lat, color = y.2013),
+                                  size = 3, alpha = 0.65, na.rm = TRUE) +
+      scale_color_manual(values=c("red", "yellow", "sky blue", 
+                                  "dark green", "purple", "Brown")) + 
+      labs(title = "[Clustered, 2013] Favelas in Rio de Janeiro")
+
+
+
+centers2005
+centers2006
+centers2007
+centers2008
+centers2009
+centers2013
+```
+
+## K-Means with Pie Charts
+
+```{r,echo=FALSE,results='hide',fig.keep='all'}
+# Need to install scatterpie
+library(scatterpie)
+
+getGroups = function(colName){
+  clusterDists = lapply(c(1:numClusters), function(i){
+    members = which(means$cluster == i)
+    clusterMembers = locations_df[members,]
+    groups2005 = data.frame(rbind(
+                table(clusterMembers[,which(names(locations_df) == colName)])))
+  })
+  final = data.frame(matrix(1:7, ncol = 7))
+  names(final) = c("ADA", "CV", "MILICIA", "NEUTRAL", "TCP", "UPP", 
+                   "COMPLEXO.DO.ALEMAO.OCCUPATION")
+  for(clusterDist in clusterDists){
+    final= bind_rows(final, clusterDist)
+  }
+  final = final[-c(1),]
+  final = cbind(kMeanCenters[,c(1,2)], final)
+  final[is.na(final)] = 0.001
+  
+  return(final)
+}
+
+centerDists = lapply(c("controlling_faction_2005", "controlling_faction_2006", 
+         "controlling_faction_2007", "controlling_faction_2008",
+         "controlling_faction_2009", "controlling_faction_2013", 
+         "controlling_faction_2019"), getGroups)
+
+lapply(c(1:7), function(i){
+  if(i <  6){
+    year = i + 2004
+  }
+  else if (i == 6){
+    year = 2013
+  }
+  else{
+    year = 2019
+  }
+  plot = ggmap(map) + 
+              geom_scatterpie(data = centerDists[[i]], aes(x = lon, y = lat),
+                              cols=names(centerDists[[i]])[3:9], 
+                              color = NA,  
+                              pie_scale = 0.03, 
+                              legend_name = "Militia", na.rm = TRUE) +
+              labs(title = paste("[",
+                            paste(year,"] Militia Control in Rio de Janeiro")))
+  return(plot)
+})
+```
+
+```{r}
+militiaProp = data.frame(matrix(1:7, ncol = 7))
+names(militiaProp) = c("ADA", "CV", "MILICIA", "NEUTRAL", "TCP", "UPP", 
+                 "COMPLEXO.DO.ALEMAO.OCCUPATION")
+
+
+militiaProp = bind_rows(militiaProp, data.frame(rbind(prop.table(table(locations_df$controlling_faction_2005)))))
+militiaProp = bind_rows(militiaProp, data.frame(rbind(prop.table(table(locations_df$controlling_faction_2006)))))
+militiaProp = bind_rows(militiaProp, data.frame(rbind(prop.table(table(locations_df$controlling_faction_2007)))))
+militiaProp = bind_rows(militiaProp, data.frame(rbind(prop.table(table(locations_df$controlling_faction_2008)))))
+militiaProp = bind_rows(militiaProp, data.frame(rbind(prop.table(table(locations_df$controlling_faction_2009)))))
+militiaProp = bind_rows(militiaProp, data.frame(rbind(prop.table(table(locations_df$controlling_faction_2013)))))
+militiaProp = bind_rows(militiaProp, data.frame(rbind(prop.table(table(locations_df$controlling_faction_2019)))))
+militiaProp[is.na(militiaProp)] = 0
+militiaProp = militiaProp[-1,]
+rownames(militiaProp) = c("2005", "2006", "2007","2008","2009", "2013", "2019")
+
+
+```
