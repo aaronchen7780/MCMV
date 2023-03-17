@@ -28,7 +28,7 @@ terr
 addresses <- distinct(terr, favela_address)
 addresses
 ```
-
+ 
 ```{r}
 # register_google(key="AIzaSyDVqzce-n2UoZPPNyoArG8MJcmlKvJOApQ")
 # addresses_df <- as.data.frame(addresses)
