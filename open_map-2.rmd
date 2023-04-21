@@ -1,0 +1,357 @@
+---
+title: "open map terrain"
+output:
+  html_document:
+    df_print: paged
+date: '2023-02-06'
+---
+
+# Reference Links:
+https://dominicroye.github.io/en/2018/accessing-openstreetmap-data-with-r/
+https://wiki.openstreetmap.org/wiki/Map_features (wiki docs for available map features)
+
+Bounding boxes:
+Rio city bounding box: c(-23.0827051,-43.796252,-22.7460878,-43.0990811)
+Rio state bounding box: c(-23.6817833,-44.8893206,-20.7632055,-40.6314811)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("tidyverse")
+library(tidyverse)
+library(osmdata)
+library(sf)
+library(ggmap)
+```
+
+```{r}
+mcmv.df = read.csv("MCMV_eng.csv")
+mcmv.df
+```
+
+```{r}
+locations_df = read.csv("housing_projects_coord.csv")
+locations_df
+```
+
+```{r}
+terr <- read.csv("terr_control.csv", stringsAsFactors=F)
+terr
+```
+
+```{r}
+locations2_df = read.csv("favelaCoords.csv")
+locations2_df
+```
+
+```{r}
+mcmv_rio = read.csv("MCMV_RioDeJaneiro.csv")
+mcmv_rio
+```
+
+```{r}
+# locations3_df = read.csv("housing_coord_new.csv")
+# locations3_df
+```
+
+# Hospitals
+
+```{r}
+q <- getbb("BR-RJ") %>%
+      opq() %>%
+       add_osm_feature("amenity", "hospital")
+str(q)
+```
+
+```{r}
+# returns list of spatial objects
+hospitals <- osmdata_sf(q)
+hospitals
+```
+
+```{r}
+hospitals$osm_points
+```
+
+```{r}
+register_google(key="AIzaSyB5PHlmYIaT82XHNMY8VNoOWTAr3_mcQcc")
+#  <- get_googlemap(center = c(-43.469348, -22.908618), zoom rio_map= 11)
+# loc <- c(left = -43.75, bottom = -23.1, right = -43.15, top = -22.73)
+loc = c(bottom = -23.6817833, left = -44.8893206, top = -20.7632055, right = -40.6314811)
+rio_map <- get_map(location=loc, source="stamen", maptype="terrain")
+```
+
+```{r}
+ggmap(rio_map)+
+  geom_sf(data = hospitals$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21) +
+  labs(x = "longitude", y = "latitude", title = "Hospitals in Rio de Janeiro from Open Street Maps API")
+```
+
+# Schools
+
+```{r}
+q2 <- getbb("BR-RJ") %>%
+      opq() %>%
+       add_osm_feature("amenity", "school")
+
+str(q2)
+```
+
+```{r}
+# returns list of spatial objects
+schools <- osmdata_sf(q2)
+schools
+```
+
+```{r}
+ggmap(rio_map)+
+  geom_sf(data = schools$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+```
+
+# Police
+
+```{r}
+q3 <- getbb("BR-RJ") %>%
+      opq() %>%
+       add_osm_feature("amenity", "police")
+
+str(q3)
+```
+
+```{r}
+# returns list of spatial objects
+police <- osmdata_sf(q3)
+police
+```
+
+```{r}
+ggmap(rio_map)+
+  geom_sf(data = police$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+```
+
+# Grocery Stores
+
+```{r}
+q4 <- getbb("BR-RJ") %>%
+      opq() %>%
+       add_osm_feature("shop", "greengrocer")
+
+str(q4)
+```
+
+```{r}
+# returns list of spatial objects
+grocery <- osmdata_sf(q4)
+grocery
+```
+
+```{r}
+ggmap(rio_map)+
+  geom_sf(data = grocery$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+```
+
+# Time Series stuff
+
+Ref link: https://search.r-project.org/CRAN/refmans/osmdata/html/opq.html
+
+osm data has a date/diff field you can query with to find dataset state at different times -- example: 
+
+```{r}
+# date format ex. [date:"2015-10-28T19:20:00Z"]
+# q_2012 <- getbb("Rio") %>%
+#       opq(datetime = "2012-01-01T00:00:00Z", datetime2 = "2012-12-31T23:59:59Z") %>%
+#        add_osm_feature("amenity", "hospital")
+
+q_2012 <- getbb("BR-RJ") %>%
+      opq(datetime = "2012-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+q_2012
+```
+
+```{r}
+q_2013 <- getbb("BR-RJ") %>%
+      opq(datetime = "2013-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+
+q_2014 <- getbb("BR-RJ") %>%
+      opq(datetime = "2014-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+
+q_2015 <- getbb("BR-RJ") %>%
+      opq(datetime = "2015-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+
+q_2016 <- getbb("BR-RJ") %>%
+      opq(datetime = "2016-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+
+q_2017 <- getbb("BR-RJ") %>%
+      opq(datetime = "2017-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+
+q_2018 <- getbb("BR-RJ") %>%
+      opq(datetime = "2018-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+
+q_2019 <- getbb("BR-RJ") %>%
+      opq(datetime = "2019-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+
+q_2020 <- getbb("BR-RJ") %>%
+      opq(datetime = "2020-12-31T23:59:59Z", timeout = 60) %>%
+       add_osm_feature("amenity", "hospital")
+```
+
+```{r}
+# returns list of spatial objects
+hospital_2012 <- osmdata_sf(q_2012)
+hospital_2012
+hospital_2013 <- osmdata_sf(q_2013)
+hospital_2013
+hospital_2014 <- osmdata_sf(q_2014)
+hospital_2014
+hospital_2015 <- osmdata_sf(q_2015)
+hospital_2015
+hospital_2016 <- osmdata_sf(q_2016)
+hospital_2016
+hospital_2017 <- osmdata_sf(q_2017)
+hospital_2017
+hospital_2018 <- osmdata_sf(q_2018)
+hospital_2018
+hospital_2019 <- osmdata_sf(q_2019)
+hospital_2019
+hospital_2020 <- osmdata_sf(q_2020)
+hospital_2020
+```
+
+```{r}
+ggmap(rio_map)+
+  geom_sf(data = hospitals$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2012$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2013$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2014$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2015$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2016$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2017$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2018$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2019$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+
+ggmap(rio_map)+
+  geom_sf(data = hospital_2020$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+```
+

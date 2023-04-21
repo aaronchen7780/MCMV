@@ -1,0 +1,161 @@
+---
+title: "36-490 Brazil Map Sample"
+author: "Arleen Liu (arleenl)"
+output: pdf_document
+linestretch: 1.241
+fontsize: 12pt
+---
+
+```{r}
+# load needed libraries
+library(ggplot2)
+library(ggmap)
+library(maps)
+library(grid)
+library(gridExtra)
+library(sp)
+library(lattice)
+library(maptools)
+library(tidyverse)
+```
+
+```{r}
+mcmv.df = read.csv("MCMV_eng.csv")
+mcmv.df
+```
+
+```{r}
+register_google("AIzaSyB5PHlmYIaT82XHNMY8VNoOWTAr3_mcQcc")
+```
+
+```{r}
+# get google map of Rio area
+rj = get_googlemap(center = c(-43.469348, -22.908618), zoom=10, maptype="terrain")
+```
+
+```{r}
+# IGNORE
+# reference google map item with markers
+rj2 = get_googlemap(center = c(-43.469348, -22.908618), zoom=10, maptype="terrain",
+markers="&markers=color:blue|label:1|-22.684114,-42.485386&markers=color:blue|label:2|
+-22.632589,-42.467131", format="png8", filename="MCMV_map")
+```
+
+```{r}
+# IGNORE
+# turn google map into a ggmap object and getlat/long axes on the map
+rj2_axes = ggmap(rj2) + geom_point(aes(x=lon, y=lat))
+rj2_axes
+```
+
+```{r}
+addresses <- distinct(mcmv.df, Address)
+addresses
+```
+
+```{r}
+# DO NOT RUN, GEOCODING
+addresses_df <- as.data.frame(addresses)
+locations_df <- mutate_geocode(addresses_df, location=Address, output="latlona")
+```
+
+```{r}
+# DO NOT RUN, WRITING COORDINATES TO FILE
+
+write.csv(locations_df, "housing_projects_coord.csv", row.names=TRUE)
+```
+
+```{r}
+# RUN INSTEAD TO LOAD COORDINATES
+
+locations_df = read.csv("housing_projects_coord.csv")
+locations_df
+```
+
+```{r}
+# RUN FIRST
+
+register_google(key="AIzaSyB5PHlmYIaT82XHNMY8VNoOWTAr3_mcQcc")
+# geocode("Rio de Janeiro")
+locations <- as_tibble(locations_df)
+map <- get_googlemap(center = c(-43.469348, -22.908618), zoom = 10)
+```
+
+```{r}
+# RUN NEXT (only has years 2009-2013 as a sample)
+
+# join dataset with mcmv.df, use mcmv.df$Year == 2009, etc. to filter and show housing plots by year
+housing = left_join(mcmv.df, locations, by = c("Address" = "Address"))
+
+housing.all = ggmap(map) + geom_point(
+  data = housing, 
+  color = housing$Year,
+  aes(x = lon, y = lat))
+
+housing2009 = ggmap(map) + geom_point(
+  data = housing[housing$Year == 2009, ], 
+  aes(x = lon, y = lat))
+
+housing2010 = ggmap(map) + geom_point(
+  data = housing[housing$Year == 2010, ], 
+  aes(x = lon, y = lat))
+
+housing2011 = ggmap(map) + geom_point(
+  data = housing[housing$Year == 2011, ], 
+  aes(x = lon, y = lat))
+
+housing2012 = ggmap(map) + geom_point(
+  data = housing[housing$Year == 2012, ], 
+  aes(x = lon, y = lat))
+
+housing2013 = ggmap(map) + geom_point(
+  data = housing[housing$Year == 2013, ], 
+  aes(x = lon, y = lat))
+
+housing.all
+housing2009
+housing2010
+housing2011
+housing2012
+housing2013
+```
+
+```{r}
+# automated code for generating maps for all years
+year.min = min(na.omit(housing$Year))
+year.max = max(na.omit(housing$Year))
+
+
+loc <- c(left = -43.75, bottom = -23.1, right = -43.15, top = -22.73)
+map <- get_map(location=loc, source="stamen", maptype="terrain")
+
+housing$Year = factor(ifelse(housing$Year <= 2013, "2007-2013", 
+                      ifelse(housing$Year <= 2018, "2014-2018", "2019-2022")))
+
+housing.all = ggmap(map) + geom_point(
+  data = na.omit(housing),
+  alpha = 0.8,
+  size = 2,
+  aes(x = lon, y = lat, color = Year)) + 
+  labs(title = paste("Housing Contracts across all years"))
+housing.all
+  
+for (year in year.min:year.max) {
+  housing.temp = ggmap(map) + geom_point(
+  data = housing[housing$Year == year, ], 
+  aes(x = lon, y = lat)) + labs(title = paste("Housing Contracts in",year))
+  print(housing.temp)
+}
+```
+
+```{r}
+# IGNORE 
+# code to get inset map into larger map
+brazilmap <- data.frame(map("world", "Brazil", plot = FALSE)[c("x", "y")])
+```
+
+
+
+
+
+
