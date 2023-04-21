@@ -1,0 +1,280 @@
+---
+title: "Housing Project Distance to Terrain Feature & Amenities"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+date: "2023-04-01"
+---
+
+# Reference Links:
+https://dominicroye.github.io/en/2018/accessing-openstreetmap-data-with-r/
+https://wiki.openstreetmap.org/wiki/Map_features
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+library(tidyverse)
+library(osmdata)
+library(sf)
+library(ggmap)
+library(parallel)
+library(ggplot2)
+library(FSA)
+library(multcomp)
+```
+
+
+# Data Loading 
+
+## Housing Data 
+```{r}
+housing = na.omit(read.csv("housing_coord_delivered.csv"))[,-1]
+head(housing[,-c(3,7)])
+
+contract = read.csv("rio_state.csv")
+
+tmp = merge(housing, contract, by = "ID")
+```
+
+```{r, include = FALSE}
+## Favela Data 
+terr <- read.csv("terr_control.csv", stringsAsFactors=F)
+head(terr[,-c(1,3,14)])
+```
+
+```{r, include = FALSE}
+## Favela Data 
+locations2_df = read.csv("favelaCoords.csv")
+head(locations2_df[,-1])
+```
+
+
+# OpenMaps API Access
+
+```{r}
+#Transforms input into dataframe of lon and lat columns
+processAPI = function(input){
+  tmp = unlist(input$osm_points$geometry)
+  final = data.frame(t(matrix(tmp, nrow = 2)))
+  names(final) = c("lon","lat")
+  return(final)
+}
+
+# Accesses OpenMaps API, returns dataframe of amenity info from 2009 - 2020
+getInfo = function(amenity){
+  final = data.frame(Type = c(), year = c(), lon = c(), lat = c())
+  for (yr in 2009:2022){
+    print(yr)
+    dateTime = paste(as.character(yr), "-12-31T23:59:59Z", sep = "")
+    
+    tryCatch( {data = getbb("BR-RJ") %>%
+      opq(datetime = dateTime, timeout = 1000) %>%
+       add_osm_feature("amenity", amenity) },
+      
+      error = function(e) {data = getbb("BR-RJ") %>%
+      opq(datetime = dateTime, timeout = 1000) %>%
+       add_osm_feature("amenity", amenity)})
+
+    # osmdata_sf returns list of spatial features
+    cleaned_df = processAPI(osmdata_sf(data))
+    fullCleaned = cbind(data.frame(Type = amenity, year = yr), cleaned_df)
+    final = rbind(final, fullCleaned)
+  }
+  return(final)
+}
+
+# To add more amenities, coords = getInfo(amenityName)
+
+## data for Rio-de Janeiro city only
+# hospitalCoords = read.csv("hospitalCoords.csv")
+# schoolCoords = read.csv("schoolCoords.csv")
+# policeCoords = read.csv("policeCoords.csv")
+
+# data for Rio State 
+hospitalCoords = read.csv("hospitalCoords_rioState.csv")
+schoolCoords = read.csv("schoolCoords_rioState.csv")
+policeCoords = read.csv("policeCoords_rioState.csv")
+```
+
+```{r, include = FALSE}
+# register_google(key="AIzaSyB5PHlmYIaT82XHNMY8VNoOWTAr3_mcQcc")
+# # rio_map <- get_googlemap(center = c(-43.469348, -22.908618), zoom = 11)
+# loc <- c(left = -43.75, bottom = -23.1, right = -43.15, top = -22.73)
+# rio_map <- get_map(location=loc, source="stamen", maptype="terrain")
+```
+
+# Minimum Distances Calculations 
+
+```{r}
+#Gets minimum distance from each project to the closest coord in coords
+getminDistances = function(coords){
+  projMinDistances = mclapply(c(1:nrow(housing)), 
+    function(rowNum){
+      proj = housing[rowNum,]
+      proj_lon = proj[,5]
+      proj_lat = proj[,6]
+      
+      coordsAtYear = subset(coords, year == proj[,1])
+      
+      distances = sqrt(((coordsAtYear$lon - proj_lon)*54.6)^2 + 
+                         ((coordsAtYear$lat - proj_lat)*69.2)^2)
+      return(min(distances))
+             })
+  
+  return(unlist(projMinDistances))
+}
+
+housing$hospital_minDist = getminDistances(hospitalCoords)
+housing$school_minDist = getminDistances(schoolCoords)
+housing$police_minDist = getminDistances(policeCoords)
+
+
+feasibleRows = which(housing$hospital_minDist < 50 &
+        housing$school_minDist < 50 &
+        housing$police_minDist < 50)
+
+housing = housing[feasibleRows,]
+
+# Mean of the minimum distances across contract years 
+hospitalSummary = summarize(group_by(housing, year_delivered), 
+                            Type = "Hospital",
+                            Mean_minDist = mean(na.omit(hospital_minDist)),
+                            SD_minDist = sd(na.omit(hospital_minDist)), 
+                            count = n())
+
+schoolSummary = summarize(group_by(housing, year_delivered),
+                          Type = "School",
+                          Mean_minDist = mean(na.omit(school_minDist)), 
+                          SD_minDist = sd(na.omit(school_minDist)), count = n())
+
+policeSummary = summarize(group_by(housing, year_delivered),
+                          Type = "Police",
+                          Mean_minDist = mean(na.omit(police_minDist)),
+                          SD_minDist = sd(na.omit(police_minDist)), count = n())
+
+
+# Bind everything together 
+allSummary = rbind(hospitalSummary, rbind(schoolSummary, policeSummary))
+allSummary = na.omit(allSummary)
+```
+
+# Overall Plotting
+```{r}
+typeHospital = housing[,-c(9,10)]
+typeHospital$Type = "Hospital"
+names(typeHospital)[8] = "minDist"
+
+typeSchool = housing[,-c(8,10)]
+typeSchool$Type = "School"
+names(typeSchool)[8] = "minDist"
+
+
+typepolice = housing[,-c(8,9)]
+typepolice$Type = "Police"
+names(typepolice)[8] = "minDist"
+
+housing_processed = rbind(typeHospital, rbind(typeSchool, typepolice))
+
+ggplot(housing_processed, aes(x = year_delivered, y = minDist,
+                                     color = Type)) + 
+  geom_point(alpha = 0.25) + 
+  geom_smooth(formula = y ~ x, method = "loess", se = FALSE) + 
+   labs(title = "Minimum Euclidean Distance from Project to Amenities",
+       y = "Mean of Minimum Distance (miles)",
+       x = "Year of Delivery") + scale_x_continuous(breaks=seq(2010, 2022, 2))
+
+```
+
+# Plotting of Means
+```{r}
+ggplot(allSummary, aes(y = Mean_minDist, 
+                       x = year_delivered, 
+                       color = Type)) + 
+  geom_point() + geom_smooth(formula = y ~ x, method = "loess", se = FALSE) + 
+  labs(title = "Mean of Minimum Euclidean Distance from Project to Amenities",
+       y = "Mean of Minimum Distance (miles)",
+       x = "Year of Delivery") + scale_x_continuous(breaks=seq(2010, 2022, 2))
+
+
+ggplot(allSummary, aes(y = SD_minDist, x = year_delivered, color = Type)) + 
+  geom_point() + geom_smooth(formula = y ~ x, method = "loess", se = FALSE) + 
+  labs(title = "SD of Minimum Euclidean Distance from Project to Amenities",
+       y = "SD of Minimum Distance (miles)",
+       x = "Year of Delivery") + scale_x_continuous(breaks=seq(2010, 2022, 2))
+```
+
+# Stats Tests
+
+```{r}
+housing$Group = ifelse(housing$year_delivered <= 2013, 1, 
+                       ifelse(housing$year_delivered <= 2018, 2, 3))
+housing$Group = factor(housing$Group)
+```
+
+## Hospital
+```{r}
+hospitalTest = aov(log(hospital_minDist)~ Group, data = housing)
+
+summary(hospitalTest)
+plot(TukeyHSD(hospitalTest))
+
+par(mfrow = c(3,1))
+hist(log(subset(housing, Group == 1)$hospital_minDist), 
+     main = "Minimum Distances to Hospital, 2009-2013", 
+     xlab = "Minimum Distance")
+
+hist(log(subset(housing, Group == 2)$hospital_minDist), 
+     main = "Minimum Distances to Hospital, 2014-2018", 
+     xlab = "Minimum Distance")
+
+hist(log(subset(housing, Group == 3)$hospital_minDist), 
+     main = "Minimum Distances to Hospital, 2019-2022", 
+     xlab = "Minimum Distance")
+```
+
+## Police
+```{r}
+policeTest = aov(log(police_minDist)~ Group, data = housing)
+
+summary(policeTest)
+plot(TukeyHSD(policeTest))
+
+par(mfrow = c(3,1))
+hist(log(subset(housing, Group == 1)$police_minDist), 
+     main = "Minimum Distances to police, 2009-2013", 
+     xlab = "Minimum Distance")
+
+hist(log(subset(housing, Group == 2)$police_minDist), 
+     main = "Minimum Distances to police, 2014-2018", 
+     xlab = "Minimum Distance")
+
+hist(log(subset(housing, Group == 3)$police_minDist), 
+     main = "Minimum Distances to police, 2019-2022", 
+     xlab = "Minimum Distance")
+
+```
+
+## School
+```{r}
+schoolTest = aov(log(school_minDist)~ Group, data = housing)
+
+summary(schoolTest)
+plot(TukeyHSD(schoolTest))
+
+par(mfrow = c(3,1))
+hist(log(subset(housing, Group == 1)$school_minDist), 
+     main = "Minimum Distances to school, 2009-2013", 
+     xlab = "Minimum Distance")
+
+hist(log(subset(housing, Group == 2)$school_minDist), 
+     main = "Minimum Distances to school, 2015-2018", 
+     xlab = "Minimum Distance")
+
+hist(log(subset(housing, Group == 3)$school_minDist), 
+     main = "Minimum Distances to school, 2019-2022", 
+     xlab = "Minimum Distance")
+
+```
